@@ -21,16 +21,18 @@ public class Planet : MonoBehaviour
         public int GetIndex(Vector3 v)
         {
             AddVertex(v);
+            
             return indexes[v];
         }
 
         public void AddVertex(Vector3 v)
         {
+
             if (!indexes.ContainsKey(v))
             {
                 indexes.Add(v, index);
                 UniqueVertices.Add(v);
-                index = UniqueVertices.Count;
+                index++;
             }
         }
 
@@ -48,6 +50,7 @@ public class Planet : MonoBehaviour
     }
 
     private VertexCache cache;
+    
     List<Vector3> newNormals = new List<Vector3>();
     List<Vector2> newUV = new List<Vector2>();
     List<int> newTriangles = new List<int>();
@@ -76,6 +79,13 @@ public class Planet : MonoBehaviour
         for (int i = 0; i < subdivisions; i++)
         {
             SplitTriangles();
+        }
+        
+        for (var i = 0; i < cache.UniqueVertices.Count; i++)
+        {
+            var v = cache.UniqueVertices[i];
+            var noise = Mathf.PerlinNoise(v.x*2, v.y*2);
+            cache.UniqueVertices[i] *= (1+noise*0.5f);
         }
         
         //IndexMesh();
@@ -143,7 +153,7 @@ public class Planet : MonoBehaviour
         faces.Add(new int[]{9, 8, 1});
         foreach (var v in vertices)
         {
-            cache.AddVertex(v.normalized);
+            cache.AddVertex(v/v.magnitude);
         }
         foreach (var face in faces)
         {
@@ -162,13 +172,13 @@ public class Planet : MonoBehaviour
    
         for (var i = 0; i < newTriangles.Count - 2; i+=3)
         {
-            var point1 = cache.GetVertex(newTriangles[i]).normalized;
-            var point2 = cache.GetVertex(newTriangles[i + 1]).normalized;
+            var point1 = cache.GetVertex(newTriangles[i]);
+            var point2 = cache.GetVertex(newTriangles[i + 1]);
             var point3 = cache.GetVertex(newTriangles[i + 2]);
-            
-            var mid1 = ((point1 + point2)/2).normalized;
-            var mid2 = ((point2 + point3)/2).normalized;
-            var mid3 = ((point3 + point1)/2).normalized;
+
+            var mid1 = ((point1 + point2) / 2);
+            var mid2 = ((point2 + point3) / 2);
+            var mid3 = ((point3 + point1) / 2);
 
             var newPoints = new Vector3[]
             {
@@ -180,17 +190,23 @@ public class Planet : MonoBehaviour
             
             for (var j = 0; j < newPoints.Length; j++)
             {
+                newPoints[j] /= newPoints[j].magnitude;
                 splitTriangles.Add(cache.GetIndex(newPoints[j]));
             }
         }
 
         newTriangles = splitTriangles;
-
-
-
-
-
-
+        
+    }
+    
+    private static Vector3 SphericalToCartesian(float theta1, float theta2)
+    {
+        // Here we're converting our polar and azimuthal angle to x y z co-ordinates
+        // since we're dealing with a normalised shape here, we don't need the magnitude
+        var x = (float)(Math.Sin(theta1) * Math.Cos(theta2));
+        var y = (float)Math.Cos(theta1);
+        var z = (float)(Math.Sin(theta1) * Math.Sin(theta2));
+        return new Vector3(x, y, z);
     }
     
 }
