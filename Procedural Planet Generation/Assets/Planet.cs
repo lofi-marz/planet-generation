@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,7 +16,6 @@ public class Planet : MonoBehaviour
         public int GetIndex(Vector3 v)
         {
             AddVertex(v);
-            
             return indexes[v];
         }
 
@@ -40,26 +40,80 @@ public class Planet : MonoBehaviour
             Vertices = new List<Vector3>();
         }
     }
-    
-    
+
     List<Vector3> newVertices = new List<Vector3>();
     List<Vector3> newNormals = new List<Vector3>();
     List<Vector2> newUV = new List<Vector2>();
     List<int> newTriangles = new List<int>();
-    
+
+    [Range(0, 5)]
+    public int Subdivisions = 1;
+
+
+    private void OnValidate()
+    {
+        GenerateMesh();
+    }
+
+    void IndexMesh()
+    {
+        //Put in the old index to see if it maps to a new index
+        var indexMap = new Dictionary<int, int>();
+        var uniqueVertices = new List<Vector3>();
+        
+        var oldLength = newVertices.Count;
+        for (var i = 0; i < newVertices.Count; i++)
+        {
+            if (uniqueVertices.Contains(newVertices[i]))
+            {
+                indexMap[i] = uniqueVertices.IndexOf(newVertices[i]);
+            }
+            else
+            {
+                uniqueVertices.Add(newVertices[i]);
+            }
+        }
+
+        
+        for (var i = 0; i < newTriangles.Count; i++)
+        {
+            //Get the old index from new triangles
+            //If we have a mapping for it, then replace it with the new value
+            //If we don't it should have been unique in the first place
+            var oldIndex = newTriangles[i];
+            var newIndex = uniqueVertices.IndexOf(newVertices[oldIndex]);
+            newTriangles[i] = newIndex;
+      
+        }
+        newVertices = uniqueVertices;
+        
+
+        
+    }
     
     // Start is called before the first frame update
     void Start()
     {
 
+       
+    }
+
+    public void GenerateMesh()
+    {
         Mesh mesh = new Mesh();
         mesh.name = "Icosahedron";
         GetComponent<MeshFilter>().mesh = mesh;
         
         GenerateIcosahedron();
-   
 
-        SplitTriangles();
+
+        for (int i = 0; i < Subdivisions; i++)
+        {
+            SplitTriangles();
+        }
+        
+        IndexMesh();
+        
         mesh.vertices = newVertices.ToArray();
         mesh.normals = newNormals.ToArray();
         mesh.uv = newUV.ToArray();
@@ -67,29 +121,29 @@ public class Planet : MonoBehaviour
         mesh.RecalculateNormals();
     }
 
-
     private void GenerateIcosahedron()
     {
+        newVertices = new List<Vector3>();
         float phi = (1f + Mathf.Sqrt(5f)) / 2f;
         //Generate the vertices
-        
-        newVertices.Add(new Vector3(-1,  phi,  0));
-        newVertices.Add(new Vector3( 1,  phi,  0));
-        newVertices.Add(new Vector3(-1, -phi,  0));
-        newVertices.Add(new Vector3( 1, -phi,  0));
+        var vertices = new List<Vector3>();
+        vertices.Add(new Vector3(-1,  phi,  0));
+        vertices.Add(new Vector3( 1,  phi,  0));
+        vertices.Add(new Vector3(-1, -phi,  0));
+        vertices.Add(new Vector3( 1, -phi,  0));
 
-        newVertices.Add(new Vector3( 0, -1,  phi));
-        newVertices.Add(new Vector3( 0,  1,  phi));
-        newVertices.Add(new Vector3( 0, -1, -phi));
-        newVertices.Add(new Vector3( 0,  1, -phi));
+        vertices.Add(new Vector3( 0, -1,  phi));
+        vertices.Add(new Vector3( 0,  1,  phi));
+        vertices.Add(new Vector3( 0, -1, -phi));
+        vertices.Add(new Vector3( 0,  1, -phi));
 
-        newVertices.Add(new Vector3( phi,  0, -1));
-        newVertices.Add(new Vector3( phi,  0,  1));
-        newVertices.Add(new Vector3(-phi,  0, -1));
-        newVertices.Add(new Vector3(-phi,  0,  1));
-        newVertices.Add(new Vector3(0, 1, 0));
-        newVertices.Add(new Vector3(1, 0, 0));
-        newVertices.Add(new Vector3(0, 0, 1));
+        vertices.Add(new Vector3( phi,  0, -1));
+        vertices.Add(new Vector3( phi,  0,  1));
+        vertices.Add(new Vector3(-phi,  0, -1));
+        vertices.Add(new Vector3(-phi,  0,  1));
+        vertices.Add(new Vector3(0, 1, 0));
+        vertices.Add(new Vector3(1, 0, 0));
+        vertices.Add(new Vector3(0, 0, 1));
         
         // create 20 triangles of the icosahedron
         var faces = new List<int[]>();
@@ -124,17 +178,23 @@ public class Planet : MonoBehaviour
         
         foreach (var face in faces)
         {
-            newTriangles.AddRange(face);
+            newVertices.Add(vertices[face[0]]);
+            newVertices.Add(vertices[face[1]]);
+            newVertices.Add(vertices[face[2]]);
+        }
+        for (var i = 0; i < newVertices.Count; i++)
+        {
+            newTriangles.Add(i);
         }
     }
     private void SplitTriangles()
     {
-        Mesh mesh = new Mesh();
-        mesh.name = "Icosphere";
-        GetComponent<MeshFilter>().mesh = mesh;
 
-        var oldVertices = newVertices;
-        newVertices = new List<Vector3>();
+        var oldVertices = new List<Vector3>(newVertices);
+        newVertices.Clear();
+        Debug.Log(oldVertices.Count);
+        newTriangles = new List<int>();
+        newUV = new List<Vector2>();
         
         for (var i = 0; i < oldVertices.Count - 2; i+=3)
         {
@@ -146,27 +206,23 @@ public class Planet : MonoBehaviour
             var mid2 = (point2 + point3)/2;
             var mid3 = (point3 + point1)/2;
             
-            newVertices.AddRange(new Vector3[] {mid3, mid1, point1});
-            newVertices.AddRange(new Vector3[] {mid2, point2, mid1});
-            newVertices.AddRange(new Vector3[] {point3, mid2, mid3});
-            newVertices.AddRange(new Vector3[] {mid3, mid2,  mid1});
+            newVertices.AddRange(new Vector3[] {point1, mid1, mid3});
+            newVertices.AddRange(new Vector3[] {mid1, point2, mid2});
+            newVertices.AddRange(new Vector3[] {mid3, mid2, point3});
+            newVertices.AddRange(new Vector3[] {mid1, mid2, mid3});
         }
         
-        newTriangles = new List<int>();
+       
         for (var i = 0; i < newVertices.Count; i++)
         {
-            newVertices[i].Normalize();
+            newVertices[i] = newVertices[i] / newVertices[i].magnitude;
             newTriangles.Add(i);
         }
+        
 
-        newUV = new List<Vector2>();
-        
-        
-        mesh.vertices = newVertices.ToArray();
-        mesh.uv = newUV.ToArray();
-        mesh.triangles = newTriangles.ToArray();
-        mesh.RecalculateNormals();
-        
+
+
+
     }
     
     // Update is called once per frame
