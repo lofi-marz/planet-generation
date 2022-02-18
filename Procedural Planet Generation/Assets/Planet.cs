@@ -8,11 +8,16 @@ using UnityEngine;
 public class Planet : MonoBehaviour
 {
 
+    /**
+     * The idea with this is you put in an index, get out a vertex
+     * If you put in a vertex, you get back an index, which is either created or a lookup
+     */
     class VertexCache
     {
         private int index;
+        
         public Dictionary<Vector3, int> indexes;
-        public List<Vector3> Vertices;
+        public List<Vector3> UniqueVertices;
         public int GetIndex(Vector3 v)
         {
             AddVertex(v);
@@ -23,98 +28,59 @@ public class Planet : MonoBehaviour
         {
             if (!indexes.ContainsKey(v))
             {
-                indexes.Add(v, index++);
-                Vertices.Add(v);
+                indexes.Add(v, index);
+                UniqueVertices.Add(v);
+                index = UniqueVertices.Count;
             }
         }
 
         public Vector3 GetVertex(int i)
         {
-            return Vertices[i];
+            return UniqueVertices[i];
         }
 
         public VertexCache()
         {
             index = 0;
             indexes = new Dictionary<Vector3, int>();
-            Vertices = new List<Vector3>();
+            UniqueVertices = new List<Vector3>();
         }
     }
 
-    List<Vector3> newVertices = new List<Vector3>();
+    private VertexCache cache;
     List<Vector3> newNormals = new List<Vector3>();
     List<Vector2> newUV = new List<Vector2>();
     List<int> newTriangles = new List<int>();
 
-    [Range(0, 5)]
-    public int Subdivisions = 1;
+    [Range(0, 8)]
+    public int subdivisions = 1;
 
 
     private void OnValidate()
     {
         GenerateMesh();
     }
-
-    void IndexMesh()
-    {
-        //Put in the old index to see if it maps to a new index
-        var indexMap = new Dictionary<int, int>();
-        var uniqueVertices = new List<Vector3>();
-        
-        var oldLength = newVertices.Count;
-        for (var i = 0; i < newVertices.Count; i++)
-        {
-            if (uniqueVertices.Contains(newVertices[i]))
-            {
-                indexMap[i] = uniqueVertices.IndexOf(newVertices[i]);
-            }
-            else
-            {
-                uniqueVertices.Add(newVertices[i]);
-            }
-        }
-
-        
-        for (var i = 0; i < newTriangles.Count; i++)
-        {
-            //Get the old index from new triangles
-            //If we have a mapping for it, then replace it with the new value
-            //If we don't it should have been unique in the first place
-            var oldIndex = newTriangles[i];
-            var newIndex = uniqueVertices.IndexOf(newVertices[oldIndex]);
-            newTriangles[i] = newIndex;
-      
-        }
-        newVertices = uniqueVertices;
-        
-
-        
-    }
     
-    // Start is called before the first frame update
-    void Start()
-    {
-
-       
-    }
-
     public void GenerateMesh()
     {
         Mesh mesh = new Mesh();
         mesh.name = "Icosahedron";
         GetComponent<MeshFilter>().mesh = mesh;
-        
+        cache = new VertexCache();
+        newNormals = new List<Vector3>();
+        newUV = new List<Vector2>(); 
+        newTriangles = new List<int>();
         GenerateIcosahedron();
 
 
-        for (int i = 0; i < Subdivisions; i++)
+        for (int i = 0; i < subdivisions; i++)
         {
             SplitTriangles();
         }
         
-        IndexMesh();
-        
-        mesh.vertices = newVertices.ToArray();
+        //IndexMesh();
+
+        mesh.vertices = cache.UniqueVertices.ToArray();
         mesh.normals = newNormals.ToArray();
         mesh.uv = newUV.ToArray();
         mesh.triangles = newTriangles.ToArray();
@@ -123,7 +89,7 @@ public class Planet : MonoBehaviour
 
     private void GenerateIcosahedron()
     {
-        newVertices = new List<Vector3>();
+        
         float phi = (1f + Mathf.Sqrt(5f)) / 2f;
         //Generate the vertices
         var vertices = new List<Vector3>();
@@ -175,59 +141,56 @@ public class Planet : MonoBehaviour
         faces.Add(new int[]{6, 2, 10});
         faces.Add(new int[]{8, 6, 7});
         faces.Add(new int[]{9, 8, 1});
-        
+        foreach (var v in vertices)
+        {
+            cache.AddVertex(v.normalized);
+        }
         foreach (var face in faces)
         {
-            newVertices.Add(vertices[face[0]]);
-            newVertices.Add(vertices[face[1]]);
-            newVertices.Add(vertices[face[2]]);
+            newTriangles.Add(face[0]);
+            newTriangles.Add(face[1]);
+            newTriangles.Add(face[2]);
         }
-        for (var i = 0; i < newVertices.Count; i++)
-        {
-            newTriangles.Add(i);
-        }
+
     }
     private void SplitTriangles()
     {
+        
+        
+        //Debug.Log(oldVertices.Count);
+        var splitTriangles = new List<int>();
+   
+        for (var i = 0; i < newTriangles.Count - 2; i+=3)
+        {
+            var point1 = cache.GetVertex(newTriangles[i]).normalized;
+            var point2 = cache.GetVertex(newTriangles[i + 1]).normalized;
+            var point3 = cache.GetVertex(newTriangles[i + 2]);
+            
+            var mid1 = ((point1 + point2)/2).normalized;
+            var mid2 = ((point2 + point3)/2).normalized;
+            var mid3 = ((point3 + point1)/2).normalized;
 
-        var oldVertices = new List<Vector3>(newVertices);
-        newVertices.Clear();
-        Debug.Log(oldVertices.Count);
-        newTriangles = new List<int>();
-        newUV = new List<Vector2>();
-        
-        for (var i = 0; i < oldVertices.Count - 2; i+=3)
-        {
-            var point1 = oldVertices[i];
-            var point2 = oldVertices[i + 1];
-            var point3 = oldVertices[i + 2];
+            var newPoints = new Vector3[]
+            {
+                point1, mid1, mid3,
+                mid1, point2, mid2,
+                mid3, mid2, point3,
+                mid1, mid2, mid3
+            };
             
-            var mid1 = ((point1 + point2)/2);
-            var mid2 = (point2 + point3)/2;
-            var mid3 = (point3 + point1)/2;
-            
-            newVertices.AddRange(new Vector3[] {point1, mid1, mid3});
-            newVertices.AddRange(new Vector3[] {mid1, point2, mid2});
-            newVertices.AddRange(new Vector3[] {mid3, mid2, point3});
-            newVertices.AddRange(new Vector3[] {mid1, mid2, mid3});
+            for (var j = 0; j < newPoints.Length; j++)
+            {
+                splitTriangles.Add(cache.GetIndex(newPoints[j]));
+            }
         }
-        
-       
-        for (var i = 0; i < newVertices.Count; i++)
-        {
-            newVertices[i] = newVertices[i] / newVertices[i].magnitude;
-            newTriangles.Add(i);
-        }
-        
+
+        newTriangles = splitTriangles;
+
+
 
 
 
 
     }
     
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }
