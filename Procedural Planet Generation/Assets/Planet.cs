@@ -16,12 +16,11 @@ public class Planet : MonoBehaviour
     {
         private int index;
         
-        public Dictionary<Vector3, int> indexes;
+        private Dictionary<Vector3, int> indexes;
         public List<Vector3> UniqueVertices;
         public int GetIndex(Vector3 v)
         {
             AddVertex(v);
-            
             return indexes[v];
         }
 
@@ -59,7 +58,7 @@ public class Planet : MonoBehaviour
     [SerializeField]
     private NoiseArgs noiseArgs = new NoiseArgs();
     
-    [Range(0, 8)]
+    [Range(0, 6)]
     public int subdivisions = 1;
 
     private NoiseFilter noiseFilter;
@@ -73,12 +72,14 @@ public class Planet : MonoBehaviour
     public void GenerateMesh()
     {
         Mesh mesh = new Mesh();
-        mesh.name = "Icosahedron";
+        mesh.name = "Icosphere";
         GetComponent<MeshFilter>().mesh = mesh;
         cache = new VertexCache();
         newNormals = new List<Vector3>();
         newUV = new List<Vector2>(); 
         newTriangles = new List<int>();
+        //Interestingly I have no reason to believe this wouldn't work with a different starting shape
+        
         GenerateIcosahedron();
 
 
@@ -94,7 +95,6 @@ public class Planet : MonoBehaviour
             cache.UniqueVertices[i] *= 1+noise;
         }
         
-        //IndexMesh();
 
         mesh.vertices = cache.UniqueVertices.ToArray();
         mesh.normals = newNormals.ToArray();
@@ -159,6 +159,7 @@ public class Planet : MonoBehaviour
         faces.Add(new int[]{9, 8, 1});
         foreach (var v in vertices)
         {
+            v.Normalize();
             cache.AddVertex(v);
         }
         foreach (var face in faces)
@@ -196,7 +197,7 @@ public class Planet : MonoBehaviour
             
             for (var j = 0; j < newPoints.Length; j++)
             {
-      
+                newPoints[j].Normalize();
                 splitTriangles.Add(cache.GetIndex(newPoints[j]));
             }
         }
