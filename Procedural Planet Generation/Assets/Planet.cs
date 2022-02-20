@@ -27,11 +27,12 @@ public class Planet : MonoBehaviour
 
         public void AddVertex(Vector3 v)
         {
-
+            
             if (!indexes.ContainsKey(v))
             {
                 indexes.Add(v, index);
                 UniqueVertices.Add(v);
+                if (index != UniqueVertices.Count-1) throw new Exception();
                 index++;
             }
         }
@@ -54,13 +55,18 @@ public class Planet : MonoBehaviour
     List<Vector3> newNormals = new List<Vector3>();
     List<Vector2> newUV = new List<Vector2>();
     List<int> newTriangles = new List<int>();
-
+    
+    [SerializeField]
+    private NoiseArgs noiseArgs = new NoiseArgs();
+    
     [Range(0, 8)]
     public int subdivisions = 1;
 
+    private NoiseFilter noiseFilter;
 
     private void OnValidate()
     {
+        noiseFilter = new NoiseFilter(noiseArgs);
         GenerateMesh();
     }
     
@@ -84,8 +90,8 @@ public class Planet : MonoBehaviour
         for (var i = 0; i < cache.UniqueVertices.Count; i++)
         {
             var v = cache.UniqueVertices[i];
-            var noise = Mathf.PerlinNoise(v.x*2, v.y*2);
-            cache.UniqueVertices[i] *= (1+noise*0.5f);
+            var noise = noiseFilter.Evaluate(v);
+            cache.UniqueVertices[i] *= 1+noise;
         }
         
         //IndexMesh();
@@ -153,7 +159,7 @@ public class Planet : MonoBehaviour
         faces.Add(new int[]{9, 8, 1});
         foreach (var v in vertices)
         {
-            cache.AddVertex(v/v.magnitude);
+            cache.AddVertex(v);
         }
         foreach (var face in faces)
         {
@@ -190,7 +196,7 @@ public class Planet : MonoBehaviour
             
             for (var j = 0; j < newPoints.Length; j++)
             {
-                newPoints[j] /= newPoints[j].magnitude;
+      
                 splitTriangles.Add(cache.GetIndex(newPoints[j]));
             }
         }
